@@ -1,7 +1,7 @@
 streamlit
 plotly
 yfinance
-crewai
+openai
 python-dotenv
 pandas
 pyyaml

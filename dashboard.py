@@ -248,84 +248,53 @@ with tab_ai:
             st.session_state.crew_results = {}
 
         if run_crew_btn:
-            from crewai import Agent, Task, Crew, Process
-            from crewai.tools import tool as crewai_tool
+            from openai import OpenAI
 
-            @crewai_tool
-            def stock_tool(ticker: str) -> str:
-                """Fetch key market data for a given stock ticker using yfinance."""
-                try:
-                    t = yf.Ticker(ticker)
-                    info = t.info
-                    price  = info.get("currentPrice", "N/A")
-                    volume = info.get("volume", "N/A")
-                    mcap   = info.get("marketCap", "N/A")
-                    sector = info.get("sector", "N/A")
-                    try:
-                        hist = t.history(period="5d")
-                        pct = round((hist["Close"].iloc[-1] - hist["Close"].iloc[0])
-                                    / hist["Close"].iloc[0] * 100, 2) if len(hist) >= 2 else "N/A"
-                    except Exception:
-                        pct = "N/A"
-                    return (f"Ticker: {ticker.upper()}\nCurrent Price: {price}\n"
-                            f"5-Day % Change: {pct}%\nVolume: {volume}\n"
-                            f"Market Cap: {mcap}\nSector: {sector}")
-                except Exception as e:
-                    return f"Error fetching data for {ticker}: {e}"
+            client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-            with open(AGENTS_YAML) as f:
-                agents_cfg = yaml.safe_load(f)
-            with open(TASKS_YAML) as f:
-                tasks_cfg = yaml.safe_load(f)
+            def llm(system: str, user: str) -> str:
+                resp = client.chat.completions.create(
+                    model="gpt-4o-mini",
+                    messages=[{"role": "system", "content": system},
+                               {"role": "user",   "content": user}],
+                )
+                return resp.choices[0].message.content
 
-            with st.spinner(f"Running crew for {ai_ticker}… (~60s)"):
-                researcher = Agent(
-                    role=agents_cfg["researcher"]["role"],
-                    goal=agents_cfg["researcher"]["goal"],
-                    backstory=agents_cfg["researcher"]["backstory"],
-                    tools=[stock_tool],
-                    verbose=False,
+            with st.spinner(f"Running analysis for {ai_ticker}… (~30s)"):
+                # Step 1 — Researcher
+                info = fetch_info(ai_ticker)
+                research_data = (
+                    f"Ticker: {ai_ticker}\n"
+                    f"Current Price: {info['price']}\n"
+                    f"5-Day % Change: {info['change_5d']}%\n"
+                    f"Volume: {info['volume']}\n"
+                    f"Market Cap: {fmt_large(info['market_cap'])}\n"
+                    f"Sector: {info['sector']}\n"
+                    f"P/E Ratio: {info['pe_ratio']}\n"
+                    f"52W High: {info['52w_high']}  52W Low: {info['52w_low']}"
                 )
-                strategist = Agent(
-                    role=agents_cfg["strategist"]["role"],
-                    goal=agents_cfg["strategist"]["goal"],
-                    backstory=agents_cfg["strategist"]["backstory"],
-                    verbose=False,
-                )
-                pitcher = Agent(
-                    role=agents_cfg["pitcher"]["role"],
-                    goal=agents_cfg["pitcher"]["goal"],
-                    backstory=agents_cfg["pitcher"]["backstory"],
-                    verbose=False,
-                )
-                research_task = Task(
-                    description=tasks_cfg["research_task"]["description"],
-                    expected_output=tasks_cfg["research_task"]["expected_output"],
-                    agent=researcher,
-                )
-                strategy_task = Task(
-                    description=tasks_cfg["strategy_task"]["description"],
-                    expected_output=tasks_cfg["strategy_task"]["expected_output"],
-                    agent=strategist,
-                )
-                pitch_task = Task(
-                    description=tasks_cfg["pitch_task"]["description"],
-                    expected_output=tasks_cfg["pitch_task"]["expected_output"],
-                    agent=pitcher,
-                )
-                crew = Crew(
-                    agents=[researcher, strategist, pitcher],
-                    tasks=[research_task, strategy_task, pitch_task],
-                    process=Process.sequential,
-                    verbose=False,
-                )
-                result = crew.kickoff(inputs={"ticker": ai_ticker})
 
-            # store task outputs individually
+                # Step 2 — Strategist
+                strategy = llm(
+                    "You are a seasoned investment strategist. "
+                    "Analyze the data and give a Bull/Bear label, "
+                    "a Buy/Hold/Sell recommendation, and exactly 3 bullet-point reasons.",
+                    f"Analyze this stock data:\n{research_data}"
+                )
+
+                # Step 3 — Pitcher
+                pitch = llm(
+                    "You are an investment pitch writer. "
+                    "Write a markdown investment pitch under 300 words. "
+                    "Structure: ticker as header, key metrics snapshot, "
+                    "investment thesis, final recommendation.",
+                    f"Stock data:\n{research_data}\n\nStrategy analysis:\n{strategy}"
+                )
+
             st.session_state.crew_results[ai_ticker] = {
-                "research":  str(research_task.output),
-                "strategy":  str(strategy_task.output),
-                "pitch":     str(pitch_task.output),
+                "research": research_data,
+                "strategy": strategy,
+                "pitch":    pitch,
             }
             st.success(f"Analysis for {ai_ticker} complete!")
 
