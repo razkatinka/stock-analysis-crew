@@ -2,7 +2,8 @@ import os, sys, yaml
 from pathlib import Path
 from dotenv import load_dotenv
 
-load_dotenv()
+BASE = Path(__file__).parent
+load_dotenv(BASE / ".env")
 
 import streamlit as st
 
@@ -18,7 +19,6 @@ import plotly.express as px
 import pandas as pd
 
 # ── paths ──────────────────────────────────────────────────────────────────
-BASE = Path(__file__).parent
 sys.path.insert(0, str(BASE))
 
 AGENTS_YAML = BASE / "src/stock_crew/config/agents.yaml"
@@ -232,8 +232,15 @@ with tab_compare:
 # TAB 4 — AI Analysis (StockCrew)
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 with tab_ai:
+    # Try loading from Streamlit secrets at runtime (covers Streamlit Cloud)
     if not os.getenv("OPENAI_API_KEY"):
-        st.error("OPENAI_API_KEY not found in environment. Add it to your .env file.")
+        try:
+            os.environ["OPENAI_API_KEY"] = st.secrets["OPENAI_API_KEY"]
+        except Exception:
+            pass
+
+    if not os.getenv("OPENAI_API_KEY"):
+        st.error("OPENAI_API_KEY not found. Set it in Streamlit Cloud → Settings → Secrets.")
     else:
         st.info(f"Selected ticker for AI analysis: **{ai_ticker}**. Click **Run Crew Analysis** in the sidebar.")
 
