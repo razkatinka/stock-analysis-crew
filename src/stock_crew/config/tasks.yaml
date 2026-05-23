@@ -1,0 +1,26 @@
+research_task:
+  description: >
+    Use the stock tool to fetch live market data for {ticker}.
+    Report all five metrics: current price, 5-day % change, volume,
+    market cap, and sector.
+  expected_output: >
+    A structured data summary with all five metrics clearly labeled for {ticker}.
+  agent: researcher
+
+strategy_task:
+  description: >
+    Using the research data for {ticker}, determine whether the outlook is
+    Bullish or Bearish. State your recommendation (Buy / Hold / Sell) and
+    provide exactly 3 bullet-point supporting reasons.
+  expected_output: >
+    Bull/Bear label, a Buy/Hold/Sell recommendation, and 3 bullet-point reasons.
+  agent: strategist
+
+pitch_task:
+  description: >
+    Write a markdown investment pitch for {ticker} based on the strategy analysis.
+    Maximum 300 words. Structure: ticker as the header, key metrics snapshot,
+    investment thesis, and final recommendation.
+  expected_output: >
+    A markdown-formatted investment pitch for {ticker} under 300 words.
+  agent: pitcher
