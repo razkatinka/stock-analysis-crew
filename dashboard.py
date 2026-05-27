@@ -55,7 +55,7 @@ with st.sidebar:
 tickers = [t.strip().upper() for t in raw_tickers.split(",") if t.strip()]
 
 # ── fetch market data ──────────────────────────────────────────────────────
-@st.cache_data(ttl=300)
+@st.cache_data(ttl=3600)
 def fetch_info(ticker: str) -> dict:
     info = yf.Ticker(ticker).info
     return {
